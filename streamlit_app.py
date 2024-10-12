@@ -97,7 +97,7 @@ downloads_mappe = os.path.join(brukermappe, "Downloads")
 # Generer PDF (kolonne 1)
 if med_generering:
     with col1:
-        st.subheader("Kombiner PDF med Vedlegg")
+        st.subheader("Kombiner målebrev med Vedlegg")
         pdf_file = st.file_uploader("Last opp PDF-filen med Målebrev", type="pdf")
         folder_files = st.file_uploader("Last opp vedleggs-PDF-filer", type="pdf", accept_multiple_files=True)
         
