@@ -111,7 +111,7 @@ if med_generering:
 # Splitt PDF (kolonne 2)
 if med_splitting:
     with col2:
-        st.subheader("Splitt en PDF-fil")
+        st.subheader("Splitt PDF-fil pr post")
         uploaded_pdf = st.file_uploader("Last opp PDF-fil for splitting", type=["pdf"])
         
         if uploaded_pdf and st.button("Start Splitting av PDF"):
