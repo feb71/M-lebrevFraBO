@@ -87,8 +87,8 @@ st.title("Kombiner målebrev med vedlegg / Lag en fil pr post")
 col1, col2 = st.columns(2)
 
 # Bruker velger om de vil generere PDF, splitte PDF, eller begge deler
-med_generering = st.checkbox("Kombiner PDF med vedlegg")
-med_splitting = st.checkbox("Splitt PDF")
+med_generering = st.checkbox("Kombiner målebrev med vedlegg")
+med_splitting = st.checkbox("Splitt kombinert PDF pr post")
 
 # Finn brukermappen
 brukermappe = os.path.expanduser("~")
