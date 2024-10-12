@@ -81,7 +81,7 @@ def zip_directory(directory_path, output_zip_path):
                 zipf.write(file_path, os.path.relpath(file_path, directory_path))
 
 # Streamlit app
-st.title("PDF Generator og Splitting")
+st.title("Kombiner målebrev og vedlegg  Lag en fil pr post")
 
 # Opprett to kolonner (side om side)
 col1, col2 = st.columns(2)
