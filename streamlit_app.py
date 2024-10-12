@@ -123,7 +123,7 @@ if med_splitting:
             opprettede_filer = []
             startside = 0
             for i, tekst in enumerate(tekst_per_side):
-                if "Målebrev" i tekst and i > startside:
+                if "Målebrev" in tekst and i > startside:
                     postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
                     filnavn = f"{postnummer}_{dato}.pdf"
                     output_sti = os.path.join(ny_mappe, filnavn)
