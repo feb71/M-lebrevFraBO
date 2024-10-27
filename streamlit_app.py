@@ -93,12 +93,12 @@ with col1:
     med_splitting = st.checkbox("Splitt kombinert PDF pr post")
 
     # Knapp for å laste ned kombinert PDF (etter kombinasjon)
-    if med_generering and "output_path" in st.session_state:
+    if "output_path" in st.session_state:
         with open(st.session_state.output_path, "rb") as f:
             st.download_button("Last ned kombinert PDF", f, file_name="kombinert_dokument.pdf")
     
-    # Knapp for å starte splitting av PDF og nedlasting av ZIP-fil
-    if med_splitting and "zip_filnavn" in st.session_state:
+    # Knapp for å laste ned ZIP-fil (etter splitting)
+    if "zip_filnavn" in st.session_state:
         with open(st.session_state.zip_filnavn, "rb") as z:
             st.download_button(
                 label="Last ned alle PDF-filer som ZIP",
@@ -128,7 +128,7 @@ with col3:
         st.subheader("Splitt PDF-fil pr post")
         uploaded_pdf = st.file_uploader("Last opp PDF-fil for splitting", type=["pdf"], key="split_pdf")
         
-        if uploaded_pdf:
+        if uploaded_pdf and st.button("Start Splitting av PDF"):
             ny_mappe = os.path.join(os.path.expanduser("~"), "Downloads", "Splittet_malebrev")
             if not os.path.exists(ny_mappe):
                 os.makedirs(ny_mappe)
