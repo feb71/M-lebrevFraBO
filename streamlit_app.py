@@ -24,7 +24,7 @@ def combine_pdf_and_attachments(pdf_file, folder_files):
                 continue
             if link_text in folder_dict:
                 attachment_file = folder_dict[link_text]
-                st.info(f"Legger til vedlegget: {link_text} for side {page_num + 1}")
+                #st.info(f"Legger til vedlegget: {link_text} for side {page_num + 1}")
                 attachment_file.seek(0)
                 attachment_document = fitz.open(stream=attachment_file.read(), filetype="pdf")
                 combined_document.insert_pdf(attachment_document)
