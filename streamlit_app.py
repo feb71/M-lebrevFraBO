@@ -82,68 +82,70 @@ def zip_directory(directory_path, output_zip_path):
 # Streamlit app
 st.title("Kombiner målebrev med vedlegg / Lag en fil pr post")
 
-# Bruker velger om de vil generere PDF, splitte PDF, eller begge deler
-st.write("## Velg handlinger")
-med_generering = st.checkbox("Kombiner målebrev med vedlegg")
-med_splitting = st.checkbox("Splitt kombinert PDF pr post")
+# Opprett tre kolonner
+col1, col2, col3 = st.columns(3)
 
-# Finn brukermappen
-brukermappe = os.path.expanduser("~")
-downloads_mappe = os.path.join(brukermappe, "Downloads")
+# Kolonne 1: Velg handlinger
+with col1:
+    st.write("## Velg handlinger")
+    med_generering = st.checkbox("Kombiner målebrev med vedlegg")
+    med_splitting = st.checkbox("Splitt kombinert PDF pr post")
 
-# Generer PDF (kolonne 1)
-if med_generering:
-    st.subheader("Kombiner målebrev med Vedlegg")
-    pdf_file = st.file_uploader("Last opp PDF-filen med Målebrev", type="pdf")
-    
-    # Ekspanderbar seksjon for opplasting av vedlegg
-    with st.expander("Last opp vedleggs-PDF-filer"):
-        folder_files = st.file_uploader("Velg vedleggsfiler (PDF)", type="pdf", accept_multiple_files=True)
+# Kolonne 2: Opplasting for kombinasjon
+with col2:
+    if med_generering:
+        st.subheader("Kombiner målebrev med Vedlegg")
+        pdf_file = st.file_uploader("Last opp PDF-filen med Målebrev", type="pdf", key="combine_pdf")
+        
+        # Ekspanderbar seksjon for opplasting av vedlegg
+        with st.expander("Last opp vedleggs-PDF-filer"):
+            folder_files = st.file_uploader("Velg vedleggsfiler (PDF)", type="pdf", accept_multiple_files=True, key="attachments")
 
-    if pdf_file is not None and folder_files:
-        st.write("Kombinerer filene, vennligst vent...")
-        output_path = combine_pdf_and_attachments(pdf_file, folder_files)
-        st.success("Kombinering fullført!")
-        with open(output_path, "rb") as f:
-            st.download_button("Last ned kombinert PDF", f, file_name="kombinert_dokument.pdf")
+        if pdf_file is not None and folder_files:
+            st.write("Kombinerer filene, vennligst vent...")
+            output_path = combine_pdf_and_attachments(pdf_file, folder_files)
+            st.success("Kombinering fullført!")
+            with open(output_path, "rb") as f:
+                st.download_button("Last ned kombinert PDF", f, file_name="kombinert_dokument.pdf")
 
-# Splitt PDF (kolonne 2)
-if med_splitting:
-    st.subheader("Splitt PDF-fil pr post")
-    uploaded_pdf = st.file_uploader("Last opp PDF-fil for splitting", type=["pdf"], key="split_pdf")
-    
-    if uploaded_pdf and st.button("Start Splitting av PDF"):
-        ny_mappe = os.path.join(downloads_mappe, "Splittet_malebrev")
-        if not os.path.exists(ny_mappe):
-            os.makedirs(ny_mappe)
+# Kolonne 3: Opplasting for splitting
+with col3:
+    if med_splitting:
+        st.subheader("Splitt PDF-fil pr post")
+        uploaded_pdf = st.file_uploader("Last opp PDF-fil for splitting", type=["pdf"], key="split_pdf")
+        
+        if uploaded_pdf and st.button("Start Splitting av PDF", key="split_button"):
+            ny_mappe = os.path.join(os.path.expanduser("~"), "Downloads", "Splittet_malebrev")
+            if not os.path.exists(ny_mappe):
+                os.makedirs(ny_mappe)
 
-        tekst_per_side = les_tekst_fra_pdf(uploaded_pdf)
-        opprettede_filer = []
-        startside = 0
-        for i, tekst in enumerate(tekst_per_side):
-            if "Målebrev" in tekst and i > startside:
-                postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
-                filnavn = f"{postnummer}_{dato}.pdf"
-                output_sti = os.path.join(ny_mappe, filnavn)
-                uploaded_pdf.seek(0)
-                opprett_ny_pdf(uploaded_pdf, startside, i - 1, output_sti)
-                opprettede_filer.append(output_sti)
-                startside = i
+            tekst_per_side = les_tekst_fra_pdf(uploaded_pdf)
+            opprettede_filer = []
+            startside = 0
+            for i, tekst in enumerate(tekst_per_side):
+                if "Målebrev" i tekst and i > startside:
+                    postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
+                    filnavn = f"{postnummer}_{dato}.pdf"
+                    output_sti = os.path.join(ny_mappe, filnavn)
+                    uploaded_pdf.seek(0)
+                    opprett_ny_pdf(uploaded_pdf, startside, i - 1, output_sti)
+                    opprettede_filer.append(output_sti)
+                    startside = i
 
-        postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
-        filnavn = f"{postnummer}_{dato}.pdf"
-        output_sti = os.path.join(ny_mappe, filnavn)
-        uploaded_pdf.seek(0)
-        opprett_ny_pdf(uploaded_pdf, startside, len(tekst_per_side) - 1, output_sti)
-        opprettede_filer.append(output_sti)
+            postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
+            filnavn = f"{postnummer}_{dato}.pdf"
+            output_sti = os.path.join(ny_mappe, filnavn)
+            uploaded_pdf.seek(0)
+            opprett_ny_pdf(uploaded_pdf, startside, len(tekst_per_side) - 1, output_sti)
+            opprettede_filer.append(output_sti)
 
-        zip_filnavn = os.path.join(downloads_mappe, "Splittet_malebrev.zip")
-        zip_directory(ny_mappe, zip_filnavn)
+            zip_filnavn = os.path.join(os.path.expanduser("~"), "Downloads", "Splittet_malebrev.zip")
+            zip_directory(ny_mappe, zip_filnavn)
 
-        with open(zip_filnavn, "rb") as z:
-            st.download_button(
-                label="Last ned alle PDF-filer som ZIP",
-                data=z,
-                file_name="Splittet_malebrev.zip",
-                mime="application/zip"
-            )
+            with open(zip_filnavn, "rb") as z:
+                st.download_button(
+                    label="Last ned alle PDF-filer som ZIP",
+                    data=z,
+                    file_name="Splittet_malebrev.zip",
+                    mime="application/zip"
+                )
