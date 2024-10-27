@@ -24,13 +24,10 @@ def combine_pdf_and_attachments(pdf_file, folder_files):
                 continue
             if link_text in folder_dict:
                 attachment_file = folder_dict[link_text]
-                #st.info(f"Legger til vedlegget: {link_text} for side {page_num + 1}")
                 attachment_file.seek(0)
                 attachment_document = fitz.open(stream=attachment_file.read(), filetype="pdf")
                 combined_document.insert_pdf(attachment_document)
                 attachment_document.close()
-            else:
-                st.warning(f"Fant ikke vedlegget: {link_text} i opplastede filer")
 
     output_path = 'kombinert_dokument.pdf'
     combined_document.save(output_path)
@@ -56,13 +53,15 @@ def trekk_ut_verdier(tekst):
 
     postnummer_match = re.search(beskrivelse_pattern, tekst)
     mengde_match = re.search(mengde_pattern, tekst)
-    dato_match = re.search(dato_pattern, tekst)
-
+    dato_match = datetime.now().strftime("%Y%m%d")
+    
+    if dato_match := re.search(dato_pattern, tekst):
+        dato_match = datetime.strptime(dato_match.group(1), "%d.%m.%Y").strftime("%Y%m%d")
+    
     postnummer = postnummer_match.group(1) if postnummer_match else "ukjent"
     mengde = mengde_match.group(1) if mengde_match else "ukjent"
-    dato = datetime.strptime(dato_match.group(1), "%d.%m.%Y").strftime("%Y%m%d") if dato_match else datetime.now().strftime("%Y%m%d")
 
-    return postnummer, mengde, dato
+    return postnummer, mengde, dato_match
 
 def opprett_ny_pdf(original_pdf, startside, sluttside, output_path):
     original_pdf.seek(0)
@@ -83,10 +82,8 @@ def zip_directory(directory_path, output_zip_path):
 # Streamlit app
 st.title("Kombiner målebrev med vedlegg / Lag en fil pr post")
 
-# Opprett to kolonner (side om side)
-col1, col2 = st.columns(2)
-
 # Bruker velger om de vil generere PDF, splitte PDF, eller begge deler
+st.write("## Velg handlinger")
 med_generering = st.checkbox("Kombiner målebrev med vedlegg")
 med_splitting = st.checkbox("Splitt kombinert PDF pr post")
 
@@ -96,56 +93,57 @@ downloads_mappe = os.path.join(brukermappe, "Downloads")
 
 # Generer PDF (kolonne 1)
 if med_generering:
-    with col1:
-        st.subheader("Kombiner målebrev med Vedlegg")
-        pdf_file = st.file_uploader("Last opp PDF-filen med Målebrev", type="pdf")
-        folder_files = st.file_uploader("Last opp vedleggs-PDF-filer", type="pdf", accept_multiple_files=True)
-        
-        if pdf_file is not None and folder_files:
-            st.write("Kombinerer filene, vennligst vent...")
-            output_path = combine_pdf_and_attachments(pdf_file, folder_files)
-            st.success("Kombinering fullført!")
-            with open(output_path, "rb") as f:
-                st.download_button("Last ned kombinert PDF", f, file_name="kombinert_dokument.pdf")
+    st.subheader("Kombiner målebrev med Vedlegg")
+    pdf_file = st.file_uploader("Last opp PDF-filen med Målebrev", type="pdf")
+    
+    # Ekspanderbar seksjon for opplasting av vedlegg
+    with st.expander("Last opp vedleggs-PDF-filer"):
+        folder_files = st.file_uploader("Velg vedleggsfiler (PDF)", type="pdf", accept_multiple_files=True)
+
+    if pdf_file is not None and folder_files:
+        st.write("Kombinerer filene, vennligst vent...")
+        output_path = combine_pdf_and_attachments(pdf_file, folder_files)
+        st.success("Kombinering fullført!")
+        with open(output_path, "rb") as f:
+            st.download_button("Last ned kombinert PDF", f, file_name="kombinert_dokument.pdf")
 
 # Splitt PDF (kolonne 2)
 if med_splitting:
-    with col2:
-        st.subheader("Splitt PDF-fil pr post")
-        uploaded_pdf = st.file_uploader("Last opp PDF-fil for splitting", type=["pdf"])
-        
-        if uploaded_pdf and st.button("Start Splitting av PDF"):
-            ny_mappe = os.path.join(downloads_mappe, "Splittet_malebrev")
-            if not os.path.exists(ny_mappe):
-                os.makedirs(ny_mappe)
+    st.subheader("Splitt PDF-fil pr post")
+    uploaded_pdf = st.file_uploader("Last opp PDF-fil for splitting", type=["pdf"], key="split_pdf")
+    
+    if uploaded_pdf and st.button("Start Splitting av PDF"):
+        ny_mappe = os.path.join(downloads_mappe, "Splittet_malebrev")
+        if not os.path.exists(ny_mappe):
+            os.makedirs(ny_mappe)
 
-            tekst_per_side = les_tekst_fra_pdf(uploaded_pdf)
-            opprettede_filer = []
-            startside = 0
-            for i, tekst in enumerate(tekst_per_side):
-                if "Målebrev" in tekst and i > startside:
-                    postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
-                    filnavn = f"{postnummer}_{dato}.pdf"
-                    output_sti = os.path.join(ny_mappe, filnavn)
-                    uploaded_pdf.seek(0)
-                    opprett_ny_pdf(uploaded_pdf, startside, i - 1, output_sti)
-                    opprettede_filer.append(output_sti)
-                    startside = i
+        tekst_per_side = les_tekst_fra_pdf(uploaded_pdf)
+        opprettede_filer = []
+        startside = 0
+        for i, tekst in enumerate(tekst_per_side):
+            if "Målebrev" in tekst and i > startside:
+                postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
+                filnavn = f"{postnummer}_{dato}.pdf"
+                output_sti = os.path.join(ny_mappe, filnavn)
+                uploaded_pdf.seek(0)
+                opprett_ny_pdf(uploaded_pdf, startside, i - 1, output_sti)
+                opprettede_filer.append(output_sti)
+                startside = i
 
-            postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
-            filnavn = f"{postnummer}_{dato}.pdf"
-            output_sti = os.path.join(ny_mappe, filnavn)
-            uploaded_pdf.seek(0)
-            opprett_ny_pdf(uploaded_pdf, startside, len(tekst_per_side) - 1, output_sti)
-            opprettede_filer.append(output_sti)
+        postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
+        filnavn = f"{postnummer}_{dato}.pdf"
+        output_sti = os.path.join(ny_mappe, filnavn)
+        uploaded_pdf.seek(0)
+        opprett_ny_pdf(uploaded_pdf, startside, len(tekst_per_side) - 1, output_sti)
+        opprettede_filer.append(output_sti)
 
-            zip_filnavn = os.path.join(downloads_mappe, "Splittet_malebrev.zip")
-            zip_directory(ny_mappe, zip_filnavn)
+        zip_filnavn = os.path.join(downloads_mappe, "Splittet_malebrev.zip")
+        zip_directory(ny_mappe, zip_filnavn)
 
-            with open(zip_filnavn, "rb") as z:
-                st.download_button(
-                    label="Last ned alle PDF-filer som ZIP",
-                    data=z,
-                    file_name="Splittet_malebrev.zip",
-                    mime="application/zip"
-                )
+        with open(zip_filnavn, "rb") as z:
+            st.download_button(
+                label="Last ned alle PDF-filer som ZIP",
+                data=z,
+                file_name="Splittet_malebrev.zip",
+                mime="application/zip"
+            )
