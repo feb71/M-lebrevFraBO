@@ -86,11 +86,27 @@ st.title("Kombiner målebrev med vedlegg / Lag en fil pr post")
 # Opprett tre kolonner med justerbare bredder (f.eks., 1:3:2)
 col1, col2, col3 = st.columns([1, 2, 2])
 
-# Kolonne 1: Velg handlinger
+# Kolonne 1: Velg handlinger og nedlastingsknapper
 with col1:
     st.write("## Velg handlinger")
     med_generering = st.checkbox("Kombiner målebrev med vedlegg")
     med_splitting = st.checkbox("Splitt kombinert PDF pr post")
+
+    # Knapp for å laste ned kombinert PDF (etter kombinasjon)
+    if med_generering and 'output_path' in locals():
+        with open(output_path, "rb") as f:
+            st.download_button("Last ned kombinert PDF", f, file_name="kombinert_dokument.pdf")
+    
+    # Knapp for å starte splitting av PDF og nedlasting av ZIP-fil
+    if med_splitting and 'zip_filnavn' in locals():
+        if st.button("Start Splitting av PDF"):
+            with open(zip_filnavn, "rb") as z:
+                st.download_button(
+                    label="Last ned alle PDF-filer som ZIP",
+                    data=z,
+                    file_name="Splittet_malebrev.zip",
+                    mime="application/zip"
+                )
 
 # Kolonne 2: Opplasting for kombinasjon
 with col2:
@@ -106,8 +122,6 @@ with col2:
             st.write("Kombinerer filene, vennligst vent...")
             output_path = combine_pdf_and_attachments(pdf_file, folder_files)
             st.success("Kombinering fullført!")
-            with open(output_path, "rb") as f:
-                st.download_button("Last ned kombinert PDF", f, file_name="kombinert_dokument.pdf")
 
 # Kolonne 3: Opplasting for splitting
 with col3:
@@ -115,7 +129,7 @@ with col3:
         st.subheader("Splitt PDF-fil pr post")
         uploaded_pdf = st.file_uploader("Last opp PDF-fil for splitting", type=["pdf"], key="split_pdf")
         
-        if uploaded_pdf and st.button("Start Splitting av PDF", key="split_button"):
+        if uploaded_pdf:
             ny_mappe = os.path.join(os.path.expanduser("~"), "Downloads", "Splittet_malebrev")
             if not os.path.exists(ny_mappe):
                 os.makedirs(ny_mappe)
@@ -142,11 +156,4 @@ with col3:
 
             zip_filnavn = os.path.join(os.path.expanduser("~"), "Downloads", "Splittet_malebrev.zip")
             zip_directory(ny_mappe, zip_filnavn)
-
-            with open(zip_filnavn, "rb") as z:
-                st.download_button(
-                    label="Last ned alle PDF-filer som ZIP",
-                    data=z,
-                    file_name="Splittet_malebrev.zip",
-                    mime="application/zip"
-                )
+            st.success("Splitting fullført!")
