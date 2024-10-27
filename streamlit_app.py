@@ -80,10 +80,11 @@ def zip_directory(directory_path, output_zip_path):
                 zipf.write(file_path, os.path.relpath(file_path, directory_path))
 
 # Streamlit app
+st.set_page_config(layout="wide")  # Bruk hele bredden av skjermen
 st.title("Kombiner målebrev med vedlegg / Lag en fil pr post")
 
-# Opprett tre kolonner
-col1, col2, col3 = st.columns(3)
+# Opprett tre kolonner med justerbare bredder (f.eks., 1:3:2)
+col1, col2, col3 = st.columns([1, 3, 2])
 
 # Kolonne 1: Velg handlinger
 with col1:
