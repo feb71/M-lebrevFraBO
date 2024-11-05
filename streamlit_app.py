@@ -142,7 +142,13 @@ with col3:
                 # Splitter målebrev ved "Målebrev" i teksten, uavhengig av om vedlegg er tilstede
                 if "Målebrev" in tekst or i == len(tekst_per_side) - 1:  # Endret til å også ta med siste post uten vedlegg
                     postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
-                    filnavn = f"{postnummer}_{dato}.pdf"
+                    
+                    # Sørg for at filnavn alltid genereres, selv når postnummer er "ukjent"
+                    if postnummer == "ukjent":
+                        filnavn = f"ukjent_post_{dato}.pdf"
+                    else:
+                        filnavn = f"{postnummer}_{dato}.pdf"
+                    
                     output_sti = os.path.join(ny_mappe, filnavn)
                     uploaded_pdf.seek(0)
                     opprett_ny_pdf(uploaded_pdf, startside, i - 1, output_sti)
@@ -151,7 +157,13 @@ with col3:
 
             # Sørg for at siste målebrev alltid splittes, selv uten vedlegg
             postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
-            filnavn = f"{postnummer}_{dato}.pdf"
+            
+            # Sørg for at filnavn alltid genereres, selv når postnummer er "ukjent"
+            if postnummer == "ukjent":
+                filnavn = f"ukjent_post_{dato}.pdf"
+            else:
+                filnavn = f"{postnummer}_{dato}.pdf"
+            
             output_sti = os.path.join(ny_mappe, filnavn)
             uploaded_pdf.seek(0)
             opprett_ny_pdf(uploaded_pdf, startside, len(tekst_per_side) - 1, output_sti)
