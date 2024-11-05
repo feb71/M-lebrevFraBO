@@ -6,6 +6,35 @@ from datetime import datetime
 from pathlib import Path
 import streamlit as st
 
+# Funksjon for å kombinere hoved-PDF og vedlegg
+def combine_pdf_and_attachments(pdf_file, folder_files):
+    combined_document = fitz.open()
+    original_document = fitz.open(stream=pdf_file.read(), filetype="pdf")
+    folder_dict = {Path(file.name).name: file for file in folder_files}
+
+    for page_num in range(len(original_document)):
+        page = original_document.load_page(page_num)
+        combined_document.insert_pdf(original_document, from_page=page_num, to_page=page_num)
+        text = page.get_text("text")
+        links_text = text.split("Vedlagte dokumenter:")[1].strip().split("\n") if "Vedlagte dokumenter:" in text else []
+
+        for link_text in links_text:
+            link_text = link_text.strip().replace("\\", "/").split("/")[-1]
+            if not re.match(r'.+\.pdf$', link_text):
+                continue
+            if link_text in folder_dict:
+                attachment_file = folder_dict[link_text]
+                attachment_file.seek(0)
+                attachment_document = fitz.open(stream=attachment_file.read(), filetype="pdf")
+                combined_document.insert_pdf(attachment_document)
+                attachment_document.close()
+
+    output_path = 'kombinert_dokument.pdf'
+    combined_document.save(output_path)
+    combined_document.close()
+
+    return output_path
+
 # Funksjon for å lese tekst fra PDF for splitting
 def les_tekst_fra_pdf(pdf_file):
     dokument = fitz.open(stream=pdf_file.read(), filetype="pdf")
