@@ -47,7 +47,8 @@ def les_tekst_fra_pdf(pdf_file):
 
 # Funksjon for å trekke ut verdier fra teksten
 def trekk_ut_verdier(tekst):
-    beskrivelse_pattern = r'Beskrivelse\s*(\d{1,2}\.\d{1,2}\.\d{2,3})'
+    # Forbedret regex for å håndtere postnumre med varierende lengder
+    beskrivelse_pattern = r'Postnummer\s*(\d{2}\.\d{1,2}\.\d+)'  # Tar høyde for varierende lengde etter siste punktum
     mengde_pattern = r'(?<=Utført pr. d.d.:\n)([\d,]+)'
     dato_pattern = r'(\d{2}\.\d{2}\.\d{4})'
 
