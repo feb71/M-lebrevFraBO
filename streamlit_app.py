@@ -140,7 +140,7 @@ with col3:
             startside = 0
             for i, tekst in enumerate(tekst_per_side):
                 # Splitter målebrev ved "Målebrev" i teksten, uavhengig av om vedlegg er tilstede
-                if "Målebrev" in tekst and i > startside:
+                if "Målebrev" in tekst or i == len(tekst_per_side) - 1:  # Endret til å også ta med siste post uten vedlegg
                     postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
                     filnavn = f"{postnummer}_{dato}.pdf"
                     output_sti = os.path.join(ny_mappe, filnavn)
