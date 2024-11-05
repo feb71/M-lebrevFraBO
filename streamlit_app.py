@@ -158,5 +158,16 @@ with col3:
             # Opprett zip-fil av splittede PDF-er
             zip_filnavn = os.path.join(os.path.expanduser("~"), "Downloads", "Splittet_malebrev.zip")
             zip_directory(ny_mappe, zip_filnavn)
+
+            # Lagre zip-filnavn i session state for nedlasting
             st.session_state.zip_filnavn = zip_filnavn
             st.success("Splitting fullført!")
+            
+            # Vis nedlastingsknappen for ZIP-filen
+            with open(zip_filnavn, "rb") as z:
+                st.download_button(
+                    label="Last ned alle PDF-filer som ZIP",
+                    data=z,
+                    file_name="Splittet_malebrev.zip",
+                    mime="application/zip"
+                )
