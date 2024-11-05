@@ -45,9 +45,9 @@ def les_tekst_fra_pdf(pdf_file):
     dokument.close()
     return tekst_per_side
 
-# Funksjon for å trekke ut verdier fra teksten (forbedret gjenkjenning av postnummer)
+# Funksjon for å trekke ut verdier fra teksten
 def trekk_ut_verdier(tekst):
-    beskrivelse_pattern = r'(\d{2}\.\d{2}\.\d{2,3})'  # Forbedret mønster for å gjenkjenne postnummer
+    beskrivelse_pattern = r'Beskrivelse\s*(\d{1,2}\.\d{1,2}\.\d{2,3})'
     mengde_pattern = r'(?<=Utført pr. d.d.:\n)([\d,]+)'
     dato_pattern = r'(\d{2}\.\d{2}\.\d{4})'
 
@@ -63,7 +63,6 @@ def trekk_ut_verdier(tekst):
 
     return postnummer, mengde, dato_match
 
-# Funksjon for å opprette ny PDF for hver post
 def opprett_ny_pdf(original_pdf, startside, sluttside, output_path):
     original_pdf.seek(0)
     dokument = fitz.open(stream=original_pdf.read(), filetype="pdf")
@@ -73,7 +72,6 @@ def opprett_ny_pdf(original_pdf, startside, sluttside, output_path):
     ny_pdf.close()
     dokument.close()
 
-# Funksjon for å zippe en katalog med splittede PDF-er
 def zip_directory(directory_path, output_zip_path):
     with zipfile.ZipFile(output_zip_path, 'w') as zipf:
         for root, dirs, files in os.walk(directory_path):
@@ -86,28 +84,13 @@ st.set_page_config(layout="wide")  # Bruk hele bredden av skjermen
 st.title("Kombiner målebrev med vedlegg / Lag en fil pr post")
 
 # Opprett tre kolonner med justerbare bredder (f.eks., 1:3:2)
-col1, col2, col3 = st.columns([1, 3, 2])
+col1, col2, col3 = st.columns([1, 2, 2])
 
-# Kolonne 1: Velg handlinger og nedlastingsknapper
+# Kolonne 1: Velg handlinger
 with col1:
     st.write("## Velg handlinger")
     med_generering = st.checkbox("Kombiner målebrev med vedlegg")
     med_splitting = st.checkbox("Splitt kombinert PDF pr post")
-
-    # Knapp for å laste ned kombinert PDF (etter kombinasjon)
-    if "output_path" in st.session_state:
-        with open(st.session_state.output_path, "rb") as f:
-            st.download_button("Last ned kombinert PDF", f, file_name="kombinert_dokument.pdf")
-    
-    # Knapp for å laste ned ZIP-fil (etter splitting)
-    if "zip_filnavn" in st.session_state:
-        with open(st.session_state.zip_filnavn, "rb") as z:
-            st.download_button(
-                label="Last ned alle PDF-filer som ZIP",
-                data=z,
-                file_name="Splittet_malebrev.zip",
-                mime="application/zip"
-            )
 
 # Kolonne 2: Opplasting for kombinasjon
 with col2:
@@ -121,8 +104,10 @@ with col2:
 
         if pdf_file is not None and folder_files:
             st.write("Kombinerer filene, vennligst vent...")
-            st.session_state.output_path = combine_pdf_and_attachments(pdf_file, folder_files)
+            output_path = combine_pdf_and_attachments(pdf_file, folder_files)
             st.success("Kombinering fullført!")
+            with open(output_path, "rb") as f:
+                st.download_button("Last ned kombinert PDF", f, file_name="kombinert_dokument.pdf")
 
 # Kolonne 3: Opplasting for splitting
 with col3:
@@ -130,7 +115,7 @@ with col3:
         st.subheader("Splitt PDF-fil pr post")
         uploaded_pdf = st.file_uploader("Last opp PDF-fil for splitting", type=["pdf"], key="split_pdf")
         
-        if uploaded_pdf and st.button("Start Splitting av PDF"):
+        if uploaded_pdf and st.button("Start Splitting av PDF", key="split_button"):
             ny_mappe = os.path.join(os.path.expanduser("~"), "Downloads", "Splittet_malebrev")
             if not os.path.exists(ny_mappe):
                 os.makedirs(ny_mappe)
@@ -139,45 +124,25 @@ with col3:
             opprettede_filer = []
             startside = 0
             for i, tekst in enumerate(tekst_per_side):
-                # Splitter målebrev ved "Målebrev" i teksten, uavhengig av om vedlegg er tilstede
-                if "Målebrev" in tekst or i == len(tekst_per_side) - 1:  # Endret til å også ta med siste post uten vedlegg
+                if "Målebrev" in tekst and i > startside:
                     postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
-                    
-                    # Sørg for at filnavn alltid genereres, selv når postnummer er "ukjent"
-                    if postnummer == "ukjent":
-                        filnavn = f"ukjent_post_{dato}.pdf"
-                    else:
-                        filnavn = f"{postnummer}_{dato}.pdf"
-                    
+                    filnavn = f"{postnummer}_{dato}.pdf"
                     output_sti = os.path.join(ny_mappe, filnavn)
                     uploaded_pdf.seek(0)
                     opprett_ny_pdf(uploaded_pdf, startside, i - 1, output_sti)
                     opprettede_filer.append(output_sti)
                     startside = i
 
-            # Sørg for at siste målebrev alltid splittes, selv uten vedlegg
             postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
-            
-            # Sørg for at filnavn alltid genereres, selv når postnummer er "ukjent"
-            if postnummer == "ukjent":
-                filnavn = f"ukjent_post_{dato}.pdf"
-            else:
-                filnavn = f"{postnummer}_{dato}.pdf"
-            
+            filnavn = f"{postnummer}_{dato}.pdf"
             output_sti = os.path.join(ny_mappe, filnavn)
             uploaded_pdf.seek(0)
             opprett_ny_pdf(uploaded_pdf, startside, len(tekst_per_side) - 1, output_sti)
             opprettede_filer.append(output_sti)
 
-            # Opprett zip-fil av splittede PDF-er
             zip_filnavn = os.path.join(os.path.expanduser("~"), "Downloads", "Splittet_malebrev.zip")
             zip_directory(ny_mappe, zip_filnavn)
 
-            # Lagre zip-filnavn i session state for nedlasting
-            st.session_state.zip_filnavn = zip_filnavn
-            st.success("Splitting fullført!")
-            
-            # Vis nedlastingsknappen for ZIP-filen
             with open(zip_filnavn, "rb") as z:
                 st.download_button(
                     label="Last ned alle PDF-filer som ZIP",
