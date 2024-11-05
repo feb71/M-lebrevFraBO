@@ -45,9 +45,9 @@ def les_tekst_fra_pdf(pdf_file):
     dokument.close()
     return tekst_per_side
 
-# Funksjon for å trekke ut verdier fra teksten
+# Funksjon for å trekke ut verdier fra teksten (forbedret gjenkjenning av postnummer)
 def trekk_ut_verdier(tekst):
-    beskrivelse_pattern = r'Beskrivelse\s*(\d{1,2}\.\d{1,2}\.\d{2,3})'
+    beskrivelse_pattern = r'(\d{2}\.\d{2}\.\d{2,3})'  # Forbedret mønster for å gjenkjenne postnummer
     mengde_pattern = r'(?<=Utført pr. d.d.:\n)([\d,]+)'
     dato_pattern = r'(\d{2}\.\d{2}\.\d{4})'
 
@@ -58,11 +58,16 @@ def trekk_ut_verdier(tekst):
     if dato_match := re.search(dato_pattern, tekst):
         dato_match = datetime.strptime(dato_match.group(1), "%d.%m.%Y").strftime("%Y%m%d")
     
-    postnummer = postnummer_match.group(1) if postnummer_match else "ukjent"
+    postnummer = postnummer_match.group(1) if postnummer_match else None
     mengde = mengde_match.group(1) if mengde_match else "ukjent"
+
+    # Forbedret feilhåndtering for postnummer
+    if not postnummer:
+        postnummer = "ukjent"  # Hvis postnummer ikke blir funnet
 
     return postnummer, mengde, dato_match
 
+# Funksjon for å opprette ny PDF for hver post
 def opprett_ny_pdf(original_pdf, startside, sluttside, output_path):
     original_pdf.seek(0)
     dokument = fitz.open(stream=original_pdf.read(), filetype="pdf")
@@ -72,6 +77,7 @@ def opprett_ny_pdf(original_pdf, startside, sluttside, output_path):
     ny_pdf.close()
     dokument.close()
 
+# Funksjon for å zippe en katalog med splittede PDF-er
 def zip_directory(directory_path, output_zip_path):
     with zipfile.ZipFile(output_zip_path, 'w') as zipf:
         for root, dirs, files in os.walk(directory_path):
