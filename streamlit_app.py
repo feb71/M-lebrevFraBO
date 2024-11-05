@@ -47,15 +47,24 @@ def les_tekst_fra_pdf(pdf_file):
 
 # Funksjon for å trekke ut verdier fra teksten
 def trekk_ut_verdier(tekst):
-    # Forbedret regex for å håndtere postnumre med 5 til 8 sifre delt med punktum
-    beskrivelse_pattern = r'Postnummer\s*(\d{1,2}\.\d{1,2}\.\d{1,4})'  # Fleksibelt mønster for å håndtere lengder fra 5 til 8 sifre
+    # Oppdatert regex for å håndtere postnumre med 5 til 8 sifre delt med punktum
+    beskrivelse_pattern = r'Postnummer\s*(\d{1,2}\.\d{1,2}\.\d{1,4})'  # Matcher postnumre med segmenter fra 1 til 4 sifre
     mengde_pattern = r'(?<=Utført pr. d.d.:\n)([\d,]+)'
     dato_pattern = r'(\d{2}\.\d{2}\.\d{4})'
+
+    # Debug for å vise teksten som sjekkes
+    print(f"Sjekker tekst: {tekst}")
 
     postnummer_match = re.search(beskrivelse_pattern, tekst)
     mengde_match = re.search(mengde_pattern, tekst)
     dato_match = datetime.now().strftime("%Y%m%d")
     
+    # Debug: Vis om regex finner noe eller ikke
+    if postnummer_match:
+        print(f"Fant postnummer: {postnummer_match.group(1)}")
+    else:
+        print("Fant ikke postnummer")
+
     if dato_match := re.search(dato_pattern, tekst):
         dato_match = datetime.strptime(dato_match.group(1), "%d.%m.%Y").strftime("%Y%m%d")
     
@@ -63,7 +72,6 @@ def trekk_ut_verdier(tekst):
     mengde = mengde_match.group(1) if mengde_match else "ukjent"
 
     return postnummer, mengde, dato_match
-
 def opprett_ny_pdf(original_pdf, startside, sluttside, output_path):
     original_pdf.seek(0)
     dokument = fitz.open(stream=original_pdf.read(), filetype="pdf")
