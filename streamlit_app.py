@@ -146,7 +146,7 @@ with col3:
                     opprettede_filer.append(output_sti)
                     startside = i
 
-            # Sørg for å splitte siste målebrev uavhengig av vedlegg
+            # Sørg for å splitte siste målebrev, selv uten vedlegg
             postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
             filnavn = f"{postnummer}_{dato}.pdf"
             output_sti = os.path.join(ny_mappe, filnavn)
