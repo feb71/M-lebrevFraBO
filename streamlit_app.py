@@ -2,6 +2,7 @@ import re
 from datetime import datetime
 import fitz  # PyMuPDF
 import os
+import zipfile
 import streamlit as st
 
 st.set_page_config(layout="wide")  # Bruk hele bredden av skjermen
@@ -14,9 +15,6 @@ def trekk_ut_verdier(tekst):
         postnummer_match = re.search(r'Postnummer\s*(.*?)\s*Beskrivelse', tekst, re.DOTALL)
         if postnummer_match:
             postnummer = postnummer_match.group(1).strip()  # Fjern ekstra mellomrom
-
-    # Debug: Vis postnummer i Streamlit for å sjekke om det blir funnet korrekt
-    st.write(f"Funnet postnummer: '{postnummer}'")
 
     # Finn mengde og dato
     mengde_pattern = r'(?<=Utført pr. d.d.:\n)([\d,]+)'
@@ -97,9 +95,15 @@ if uploaded_pdf and st.button("Start Splitting av PDF"):
 
     # Gi brukeren mulighet til å laste ned ZIP-fil
     zip_path = os.path.join(os.path.expanduser("~"), "Downloads", "Splittet_malebrev.zip")
-    with zipfile.ZipFile(zip_path, 'w') as zipf:
-        for fil in opprettede_filer:
-            zipf.write(fil, os.path.basename(fil))
+    try:
+        with zipfile.ZipFile(zip_path, 'w') as zipf:
+            for fil in opprettede_filer:
+                zipf.write(fil, os.path.basename(fil))
+    except Exception as e:
+        st.error(f"En feil oppstod under opprettelse av ZIP-fil: {e}")
 
-    with open(zip_path, "rb") as z:
-        st.download_button("Last ned alle PDF-filer som ZIP", z, file_name="Splittet_malebrev.zip", mime="application/zip")
+    if os.path.exists(zip_path):
+        with open(zip_path, "rb") as z:
+            st.download_button("Last ned alle PDF-filer som ZIP", z, file_name="Splittet_malebrev.zip", mime="application/zip")
+    else:
+        st.error("ZIP-filen ble ikke opprettet.")
