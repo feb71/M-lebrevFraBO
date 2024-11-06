@@ -35,7 +35,7 @@ def combine_pdf_and_attachments(pdf_file, folder_files):
 
     return output_path
 
-# Funksjon for å lese tekst fra PDF for splitting
+# Funksjon for å lese tekst fra PDF for splitting (samme som i splitteprogrammet)
 def les_tekst_fra_pdf(pdf_file):
     dokument = fitz.open(stream=pdf_file.read(), filetype="pdf")
     tekst_per_side = []
@@ -45,7 +45,7 @@ def les_tekst_fra_pdf(pdf_file):
     dokument.close()
     return tekst_per_side
 
-# Oppdatert funksjon for å trekke ut postnummer og andre verdier fra teksten
+# Funksjon for å trekke ut postnummer og andre verdier fra teksten (samme som i splitteprogrammet)
 def trekk_ut_verdier(tekst):
     # Søker etter "Postnummer" etterfulgt av ønsket tallformat inntil en enhetstype som RS, STK, etc.
     beskrivelse_pattern = r"Postnummer Beskrivelse (\d{1,2}\.\d{1,2}\.\d{1,4})(?=\s+[RS|STK|kg|m|m2|m3|M|M2|M3]\b)"
@@ -64,7 +64,7 @@ def trekk_ut_verdier(tekst):
 
     return postnummer, mengde, dato_match
 
-# Funksjon for å opprette ny PDF for hver post
+# Funksjon for å opprette ny PDF for hver post (samme som i splitteprogrammet)
 def opprett_ny_pdf(original_pdf, startside, sluttside, output_path):
     original_pdf.seek(0)
     dokument = fitz.open(stream=original_pdf.read(), filetype="pdf")
@@ -112,7 +112,7 @@ with col2:
             with open(output_path, "rb") as f:
                 st.download_button("Last ned kombinert PDF", f, file_name="kombinert_dokument.pdf")
 
-# Kolonne 3: Opplasting for splitting
+# Kolonne 3: Opplasting for splitting (samme logikk som i det opprinnelige splitteprogrammet)
 with col3:
     if med_splitting:
         st.subheader("Splitt PDF-fil pr post")
