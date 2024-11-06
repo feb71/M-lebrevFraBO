@@ -77,27 +77,53 @@ def zip_opprettede_filer(filer, zip_filnavn):
             zipf.write(fil, os.path.basename(fil))
 
 # Streamlit-grensesnittet
-st.title("Splitt PDF-fil pr post")
-uploaded_pdf = st.file_uploader("Last opp PDF-fil for splitting", type="pdf")
+st.title("Kombiner målebrev med vedlegg / Lag en fil pr post")
+col1, col2, col3 = st.columns([1, 2, 2])
+
+# Velg handlinger
+with col1:
+    st.write("## Velg handlinger")
+    med_generering = st.checkbox("Kombiner målebrev med vedlegg")
+    med_splitting = st.checkbox("Splitt kombinert PDF pr post")
+
 output_folder = os.path.join(os.path.expanduser("~"), "Downloads", "Splittet_malebrev")
 
-if uploaded_pdf and st.button("Start Splitting av PDF"):
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
+# Kombiner PDF og vedlegg
+if med_generering:
+    with col2:
+        st.subheader("Kombiner målebrev med Vedlegg")
+        pdf_file = st.file_uploader("Last opp PDF-filen med Målebrev", type="pdf", key="combine_pdf")
+        with st.expander("Last opp vedleggs-PDF-filer"):
+            folder_files = st.file_uploader("Velg vedleggsfiler (PDF)", type="pdf", accept_multiple_files=True, key="attachments")
+        
+        if pdf_file and folder_files:
+            # Her kan du implementere logikken for å kombinere PDF-er og vedlegg
+            # For enkelhets skyld, legger vi til en knapp som skriver ut en melding
+            st.write("Kombineringslogikk kommer her...")
 
-    st.write(f"Starter splitting og lagrer i mappe: {output_folder}")
-    opprettede_filer = behandle_og_splitte_pdf(uploaded_pdf, output_folder)
+# Splitt PDF pr post
+if med_splitting:
+    with col3:
+        st.subheader("Splitt PDF-fil pr post")
+        uploaded_pdf = st.file_uploader("Last opp PDF-fil for splitting", type="pdf", key="split_pdf")
 
-    st.success("Splitting fullført!")
-    st.write(f"Antall opprettede filer: {len(opprettede_filer)}")
+        if uploaded_pdf and st.button("Start Splitting av PDF"):
+            if not os.path.exists(output_folder):
+                os.makedirs(output_folder)
 
-    # Lag en ZIP-fil med kun de opprettede filene
-    zip_filnavn = os.path.join(os.path.expanduser("~"), "Downloads", "Splittet_malebrev.zip")
-    zip_opprettede_filer(opprettede_filer, zip_filnavn)
+            st.write(f"Starter splitting og lagrer i mappe: {output_folder}")
+            opprettede_filer = behandle_og_splitte_pdf(uploaded_pdf, output_folder)
 
-    # Tilby nedlasting av ZIP-filen
-    if os.path.exists(zip_filnavn):
-        with open(zip_filnavn, "rb") as z:
-            st.download_button("Last ned alle PDF-filer som ZIP", z, file_name="Splittet_malebrev.zip", mime="application/zip")
-    else:
-        st.error("ZIP-filen ble ikke opprettet.")
+            st.success("Splitting fullført!")
+            st.write(f"Antall opprettede filer: {len(opprettede_filer)}")
+
+            # Lag en ZIP-fil med kun de opprettede filene
+            zip_filnavn = os.path.join(os.path.expanduser("~"), "Downloads", "Splittet_malebrev.zip")
+            zip_opprettede_filer(opprettede_filer, zip_filnavn)
+
+            # Tilby nedlasting av ZIP-filen
+            if os.path.exists(zip_filnavn):
+                with open(zip_filnavn, "rb") as z:
+                    st.download_button("Last ned alle PDF-filer som ZIP", z, file_name="Splittet_malebrev.zip", mime="application/zip")
+            else:
+                st.error("ZIP-filen ble ikke opprettet.")
