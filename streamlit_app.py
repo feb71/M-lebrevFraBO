@@ -13,7 +13,7 @@ def trekk_ut_verdier(tekst):
     postnummer_pattern = r'postnummer\s+beskrivelse\s+([\d.]+)\s+(?=rs|stk|kg|m|m2|m3)\b'
     postnummer_match = re.search(postnummer_pattern, tekst, re.IGNORECASE)
     postnummer = postnummer_match.group(1).strip() if postnummer_match else "ukjent"
-    st.write(f"Funnet postnummer: {postnummer}")  # Debug for å bekrefte funnet postnummer
+    
     mengde_pattern = r'(?<=Utført pr. d.d.:\n)([\d,]+)'
     dato_pattern = r'(\d{2}\.\d{2}\.\d{4})'
     mengde_match = re.search(mengde_pattern, tekst)
@@ -55,7 +55,6 @@ def behandle_og_splitte_pdf(uploaded_pdf, output_folder):
             filnavn = f"{postnummer}_{dato}.pdf"
             output_sti = os.path.join(output_folder, filnavn)
             uploaded_pdf.seek(0)
-            st.write(f"Oppretter PDF: {output_sti} fra side {startside} til {i - 1}")
             opprett_ny_pdf(uploaded_pdf, startside, i - 1, output_sti)
             opprettede_filer.append(output_sti)
             startside = i
@@ -64,11 +63,36 @@ def behandle_og_splitte_pdf(uploaded_pdf, output_folder):
     filnavn = f"{postnummer}_{dato}.pdf"
     output_sti = os.path.join(output_folder, filnavn)
     uploaded_pdf.seek(0)
-    st.write(f"Oppretter siste PDF: {output_sti} fra side {startside} til {len(tekst_per_side) - 1}")
     opprett_ny_pdf(uploaded_pdf, startside, len(tekst_per_side) - 1, output_sti)
     opprettede_filer.append(output_sti)
 
     return opprettede_filer
+
+# Funksjon for å kombinere hovedmålebrev med vedleggene
+def combine_pdf_and_attachments(pdf_file, folder_files, output_path):
+    combined_document = fitz.open()
+    original_document = fitz.open(stream=pdf_file.read(), filetype="pdf")
+    folder_dict = {Path(file.name).name: file for file in folder_files}
+
+    for page_num in range(len(original_document)):
+        page = original_document.load_page(page_num)
+        combined_document.insert_pdf(original_document, from_page=page_num, to_page=page_num)
+        text = page.get_text("text")
+        links_text = text.split("Vedlagte dokumenter:")[1].strip().split("\n") if "Vedlagte dokumenter:" in text else []
+
+        for link_text in links_text:
+            link_text = link_text.strip().replace("\\", "/").split("/")[-1]
+            if not re.match(r'.+\.pdf$', link_text):
+                continue
+            if link_text in folder_dict:
+                attachment_file = folder_dict[link_text]
+                attachment_file.seek(0)
+                attachment_document = fitz.open(stream=attachment_file.read(), filetype="pdf")
+                combined_document.insert_pdf(attachment_document)
+                attachment_document.close()
+
+    combined_document.save(output_path)
+    combined_document.close()
 
 # Funksjon for å zippe kun de opprettede filene
 def zip_opprettede_filer(filer, zip_filnavn):
@@ -97,9 +121,11 @@ if med_generering:
             folder_files = st.file_uploader("Velg vedleggsfiler (PDF)", type="pdf", accept_multiple_files=True, key="attachments")
         
         if pdf_file and folder_files:
-            # Her kan du implementere logikken for å kombinere PDF-er og vedlegg
-            # For enkelhets skyld, legger vi til en knapp som skriver ut en melding
-            st.write("Kombineringslogikk kommer her...")
+            output_path = os.path.join(output_folder, "kombinert_dokument.pdf")
+            combine_pdf_and_attachments(pdf_file, folder_files, output_path)
+            st.success("Kombinering fullført!")
+            with open(output_path, "rb") as f:
+                st.download_button("Last ned kombinert PDF", f, file_name="kombinert_dokument.pdf")
 
 # Splitt PDF pr post
 if med_splitting:
@@ -111,7 +137,6 @@ if med_splitting:
             if not os.path.exists(output_folder):
                 os.makedirs(output_folder)
 
-            st.write(f"Starter splitting og lagrer i mappe: {output_folder}")
             opprettede_filer = behandle_og_splitte_pdf(uploaded_pdf, output_folder)
 
             st.success("Splitting fullført!")
