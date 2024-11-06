@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 import streamlit as st
 
+st.set_page_config(layout="wide")  # Bruk hele bredden av skjermen
+
 # Funksjon for å kombinere hoved-PDF og vedlegg
 def combine_pdf_and_attachments(pdf_file, folder_files):
     combined_document = fitz.open()
@@ -100,7 +102,6 @@ def zip_directory(directory_path, output_zip_path):
                 zipf.write(file_path, os.path.relpath(file_path, directory_path))
 
 # Streamlit app
-st.set_page_config(layout="wide")  # Bruk hele bredden av skjermen
 st.title("Kombiner målebrev med vedlegg / Lag en fil pr post")
 
 # Opprett tre kolonner med justerbare bredder (f.eks., 1:3:2)
