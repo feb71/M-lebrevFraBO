@@ -8,19 +8,20 @@ import streamlit as st
 st.set_page_config(layout="wide")  # Bruk hele bredden av skjermen
 
 # Funksjon for å trekke ut verdier fra teksten
-def trekk_ut_verdier(tekst):
-    # Søk etter postnummeret basert på "Postnummer" og "Beskrivelse"
-    postnummer = "ukjent"
-    if "Postnummer" in tekst and "Beskrivelse" in tekst:
-        st.write("Tekstutdrag der vi søker etter postnummer:", tekst)  # Legger ut hele tekstutdraget for å se etter feilmønstre
-        postnummer_match = re.search(r'Postnummer\s*(.*?)\s*Beskrivelse', tekst, re.DOTALL)
-        if postnummer_match:
-            postnummer = postnummer_match.group(1).strip()  # Fjern ekstra mellomrom
+import re
+from datetime import datetime
 
-    # Logg funnet postnummer
+def trekk_ut_verdier(tekst):
+    # Regex for å finne postnummeret basert på "Postnummer Beskrivelse" og enhetstype
+    postnummer_pattern = r'postnummer\s+beskrivelse\s+([\d.]+)\s+(?=rs|stk|kg|m|m2|m3)\b'
+    postnummer_match = re.search(postnummer_pattern, tekst, re.IGNORECASE)
+
+    postnummer = postnummer_match.group(1).strip() if postnummer_match else "ukjent"
+
+    # Logg funnet postnummer for å bekrefte
     st.write(f"Funnet postnummer: {postnummer}")
 
-    # Finn mengde og dato
+    # Finn mengde og dato som før
     mengde_pattern = r'(?<=Utført pr. d.d.:\n)([\d,]+)'
     dato_pattern = r'(\d{2}\.\d{2}\.\d{4})'
 
@@ -33,6 +34,7 @@ def trekk_ut_verdier(tekst):
         dato_match = datetime.strptime(dato_match.group(1), "%d.%m.%Y").strftime("%Y%m%d")
 
     return postnummer, mengde, dato_match
+
 # Funksjon for å opprette nye PDF-er
 def opprett_ny_pdf(original_pdf, startside, sluttside, output_path):
     original_pdf.seek(0)
