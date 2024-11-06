@@ -12,6 +12,7 @@ def trekk_ut_verdier(tekst):
     # Søk etter postnummeret basert på "Postnummer" og "Beskrivelse"
     postnummer = "ukjent"
     if "Postnummer" in tekst and "Beskrivelse" in tekst:
+        st.write("Tekstutdrag der vi søker etter postnummer:", tekst)  # Legger ut hele tekstutdraget for å se etter feilmønstre
         postnummer_match = re.search(r'Postnummer\s*(.*?)\s*Beskrivelse', tekst, re.DOTALL)
         if postnummer_match:
             postnummer = postnummer_match.group(1).strip()  # Fjern ekstra mellomrom
@@ -32,7 +33,6 @@ def trekk_ut_verdier(tekst):
         dato_match = datetime.strptime(dato_match.group(1), "%d.%m.%Y").strftime("%Y%m%d")
 
     return postnummer, mengde, dato_match
-
 # Funksjon for å opprette nye PDF-er
 def opprett_ny_pdf(original_pdf, startside, sluttside, output_path):
     original_pdf.seek(0)
