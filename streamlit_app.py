@@ -127,7 +127,7 @@ with col3:
             opprettede_filer = []
             startside = 0
             for i, tekst in enumerate(tekst_per_side):
-                if "Målebrev" in tekst and i > startside:
+                if "Målebrev" in tekst and i > startside:  # Sjekk for eksakt start på nytt målebrev
                     postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
                     filnavn = f"{postnummer}_{dato}.pdf"
                     output_sti = os.path.join(ny_mappe, filnavn)
@@ -136,6 +136,7 @@ with col3:
                     opprettede_filer.append(output_sti)
                     startside = i
 
+            # Siste segment av PDF
             postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
             filnavn = f"{postnummer}_{dato}.pdf"
             output_sti = os.path.join(ny_mappe, filnavn)
