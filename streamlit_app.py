@@ -54,6 +54,9 @@ def trekk_ut_verdier(tekst):
         if postnummer_match:
             postnummer = postnummer_match.group(1).strip()  # Fjern ekstra mellomrom
 
+    # Debug: Vis postnummer i Streamlit for å sjekke om det blir funnet korrekt
+    st.write(f"Funnet postnummer: '{postnummer}'")
+
     # Finn mengde og dato
     mengde_pattern = r'(?<=Utført pr. d.d.:\n)([\d,]+)'
     dato_pattern = r'(\d{2}\.\d{2}\.\d{4})'
@@ -61,15 +64,24 @@ def trekk_ut_verdier(tekst):
     mengde_match = re.search(mengde_pattern, tekst)
     dato_match = datetime.now().strftime("%Y%m%d")
 
-    if mengde_match:
-        mengde = mengde_match.group(1)
-    else:
-        mengde = "ukjent"
+    mengde = mengde_match.group(1) if mengde_match else "ukjent"
 
     if dato_match := re.search(dato_pattern, tekst):
         dato_match = datetime.strptime(dato_match.group(1), "%d.%m.%Y").strftime("%Y%m%d")
 
     return postnummer, mengde, dato_match
+
+# Test i Streamlit-app
+st.title("Test av postnummer-uttrekk")
+
+# Eksempeltekst for testing
+tekst = st.text_area("Lim inn tekst fra målebrev her:")
+if tekst:
+    postnummer, mengde, dato = trekk_ut_verdier(tekst)
+    st.write("Resultater:")
+    st.write(f"Postnummer: {postnummer}")
+    st.write(f"Mengde: {mengde}")
+    st.write(f"Dato: {dato}")
     
 def opprett_ny_pdf(original_pdf, startside, sluttside, output_path):
     original_pdf.seek(0)
