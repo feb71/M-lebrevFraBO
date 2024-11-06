@@ -16,6 +16,9 @@ def trekk_ut_verdier(tekst):
         if postnummer_match:
             postnummer = postnummer_match.group(1).strip()  # Fjern ekstra mellomrom
 
+    # Logg funnet postnummer
+    st.write(f"Funnet postnummer: {postnummer}")
+
     # Finn mengde og dato
     mengde_pattern = r'(?<=Utført pr. d.d.:\n)([\d,]+)'
     dato_pattern = r'(\d{2}\.\d{2}\.\d{4})'
