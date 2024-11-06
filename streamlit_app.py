@@ -1,9 +1,75 @@
-import fitz  # PyMuPDF
 import re
+from datetime import datetime
+import fitz  # PyMuPDF
 import os
 import zipfile
-from datetime import datetime
 import streamlit as st
+
+st.set_page_config(layout="wide")  # Bruk hele bredden av skjermen
+
+# Funksjon for å trekke ut verdier fra teksten
+def trekk_ut_verdier(tekst):
+    # Regex for å finne postnummeret basert på "Postnummer Beskrivelse" og enhetstype
+    postnummer_pattern = r'postnummer\s+beskrivelse\s+([\d.]+)\s+(?=rs|stk|kg|m|m2|m3)\b'
+    postnummer_match = re.search(postnummer_pattern, tekst, re.IGNORECASE)
+
+    postnummer = postnummer_match.group(1).strip() if postnummer_match else "ukjent"
+
+    # Logg funnet postnummer for å bekrefte
+    st.write(f"Funnet postnummer: {postnummer}")
+
+    # Finn mengde og dato som før
+    mengde_pattern = r'(?<=Utført pr. d.d.:\n)([\d,]+)'
+    dato_pattern = r'(\d{2}\.\d{2}\.\d{4})'
+
+    mengde_match = re.search(mengde_pattern, tekst)
+    dato_match = datetime.now().strftime("%Y%m%d")
+
+    mengde = mengde_match.group(1) if mengde_match else "ukjent"
+
+    if dato_match := re.search(dato_pattern, tekst):
+        dato_match = datetime.strptime(dato_match.group(1), "%d.%m.%Y").strftime("%Y%m%d")
+
+    return postnummer, mengde, dato_match
+
+
+# Funksjon for å opprette nye PDF-er
+def opprett_ny_pdf(original_pdf, startside, sluttside, output_path):
+    original_pdf.seek(0)
+    dokument = fitz.open(stream=original_pdf.read(), filetype="pdf")
+    ny_pdf = fitz.open()
+    ny_pdf.insert_pdf(dokument, from_page=startside, to_page=sluttside)
+    ny_pdf.save(output_path)
+    ny_pdf.close()
+    dokument.close()
+
+# Hovedlogikk for å behandle PDF-splitting
+def behandle_og_splitte_pdf(uploaded_pdf, output_folder):
+    tekst_per_side = les_tekst_fra_pdf(uploaded_pdf)
+    startside = 0
+    opprettede_filer = []
+
+    for i, tekst in enumerate(tekst_per_side):
+        if "Målebrev" in tekst and i > startside:
+            postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
+            filnavn = f"{postnummer}_{dato}.pdf"
+            output_sti = os.path.join(output_folder, filnavn)
+            uploaded_pdf.seek(0)
+            st.write(f"Oppretter PDF: {output_sti} fra side {startside} til {i - 1}")
+            opprett_ny_pdf(uploaded_pdf, startside, i - 1, output_sti)
+            opprettede_filer.append(output_sti)
+            startside = i
+
+    # Håndter siste segment
+    postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
+    filnavn = f"{postnummer}_{dato}.pdf"
+    output_sti = os.path.join(output_folder, filnavn)
+    uploaded_pdf.seek(0)
+    st.write(f"Oppretter siste PDF: {output_sti} fra side {startside} til {len(tekst_per_side) - 1}")
+    opprett_ny_pdf(uploaded_pdf, startside, len(tekst_per_side) - 1, output_sti)
+    opprettede_filer.append(output_sti)
+
+    return opprettede_filer
 
 # Funksjon for å lese tekst fra PDF for splitting
 def les_tekst_fra_pdf(pdf_file):
@@ -15,85 +81,32 @@ def les_tekst_fra_pdf(pdf_file):
     dokument.close()
     return tekst_per_side
 
-# Funksjon for å trekke ut postnummer og andre verdier fra teksten
-def trekk_ut_verdier(tekst):
-    # Regex-mønster som fanger opp postnummer av forskjellige lengder etterfulgt av enhetstype
-    beskrivelse_pattern = r"Postnummer Beskrivelse (\d{1,2}\.\d{1,2}\.\d{1,4})(?=\s+[RS|STK|kg|m|m2|m3|M|M2|M3]\b)"
-    mengde_pattern = r"(?<=Utført pr. d.d.:\n)([\d,]+)"
-    dato_pattern = r"(\d{2}\.\d{2}\.\d{4})"
-
-    postnummer_match = re.search(beskrivelse_pattern, tekst, re.IGNORECASE)
-    mengde_match = re.search(mengde_pattern, tekst)
-    dato_match = datetime.now().strftime("%Y%m%d")
-    
-    if dato_match := re.search(dato_pattern, tekst):
-        dato_match = datetime.strptime(dato_match.group(1), "%d.%m.%Y").strftime("%Y%m%d")
-    
-    postnummer = postnummer_match.group(1) if postnummer_match else "ukjent"
-    mengde = mengde_match.group(1) if mengde_match else "ukjent"
-
-    return postnummer, mengde, dato_match
-
-# Funksjon for å opprette ny PDF for hver post
-def opprett_ny_pdf(original_pdf, startside, sluttside, output_path):
-    original_pdf.seek(0)
-    dokument = fitz.open(stream=original_pdf.read(), filetype="pdf")
-    ny_pdf = fitz.open()
-    ny_pdf.insert_pdf(dokument, from_page=startside, to_page=sluttside)
-    ny_pdf.save(output_path)
-    ny_pdf.close()
-    dokument.close()
-
-# Funksjon for å zippe en mappe
-def zip_directory(directory_path, output_zip_path):
-    with zipfile.ZipFile(output_zip_path, 'w') as zipf:
-        for root, dirs, files in os.walk(directory_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                zipf.write(file_path, os.path.relpath(file_path, directory_path))
-
-# Streamlit app
-st.set_page_config(layout="wide")  # Bruk hele bredden av skjermen
+# Streamlit-app for å laste opp PDF og velge lagringssted
 st.title("Splitt PDF-fil pr post")
-
-# Kolonne for splitting
-st.subheader("Splitt PDF-fil pr post")
-uploaded_pdf = st.file_uploader("Last opp PDF-fil for splitting", type=["pdf"])
+uploaded_pdf = st.file_uploader("Last opp PDF-fil for splitting", type="pdf")
+output_folder = os.path.join(os.path.expanduser("~"), "Downloads", "Splittet_malebrev")
 
 if uploaded_pdf and st.button("Start Splitting av PDF"):
-    ny_mappe = os.path.join(os.path.expanduser("~"), "Downloads", "Splittet_malebrev")
-    if not os.path.exists(ny_mappe):
-        os.makedirs(ny_mappe)
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
 
-    tekst_per_side = les_tekst_fra_pdf(uploaded_pdf)
-    opprettede_filer = []
-    startside = 0
-    for i, tekst in enumerate(tekst_per_side):
-        if "Målebrev" in tekst and i > startside:
-            postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
-            filnavn = f"{postnummer}_{dato}.pdf"
-            output_sti = os.path.join(ny_mappe, filnavn)
-            uploaded_pdf.seek(0)
-            opprett_ny_pdf(uploaded_pdf, startside, i - 1, output_sti)
-            opprettede_filer.append(output_sti)
-            startside = i
+    st.write(f"Starter splitting og lagrer i mappe: {output_folder}")
+    opprettede_filer = behandle_og_splitte_pdf(uploaded_pdf, output_folder)
 
-    # Håndter siste segment av PDF
-    postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
-    filnavn = f"{postnummer}_{dato}.pdf"
-    output_sti = os.path.join(ny_mappe, filnavn)
-    uploaded_pdf.seek(0)
-    opprett_ny_pdf(uploaded_pdf, startside, len(tekst_per_side) - 1, output_sti)
-    opprettede_filer.append(output_sti)
+    st.success("Splitting fullført!")
+    st.write(f"Antall opprettede filer: {len(opprettede_filer)}")
 
-    # Opprett ZIP av alle splittede filer
-    zip_filnavn = os.path.join(os.path.expanduser("~"), "Downloads", "Splittet_malebrev.zip")
-    zip_directory(ny_mappe, zip_filnavn)
+    # Gi brukeren mulighet til å laste ned ZIP-fil
+    zip_path = os.path.join(os.path.expanduser("~"), "Downloads", "Splittet_malebrev.zip")
+    try:
+        with zipfile.ZipFile(zip_path, 'w') as zipf:
+            for fil in opprettede_filer:
+                zipf.write(fil, os.path.basename(fil))
+    except Exception as e:
+        st.error(f"En feil oppstod under opprettelse av ZIP-fil: {e}")
 
-    with open(zip_filnavn, "rb") as z:
-        st.download_button(
-            label="Last ned alle PDF-filer som ZIP",
-            data=z,
-            file_name="Splittet_malebrev.zip",
-            mime="application/zip"
-        )
+    if os.path.exists(zip_path):
+        with open(zip_path, "rb") as z:
+            st.download_button("Last ned alle PDF-filer som ZIP", z, file_name="Splittet_malebrev.zip", mime="application/zip")
+    else:
+        st.error("ZIP-filen ble ikke opprettet.")
