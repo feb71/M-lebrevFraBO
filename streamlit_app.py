@@ -7,7 +7,7 @@ import zipfile
 import streamlit as st
 from io import BytesIO
 
-st.set_page_config(layout="wide")
+
 
 # Funksjon for å trekke ut verdier fra teksten
 def trekk_ut_verdier(tekst):
