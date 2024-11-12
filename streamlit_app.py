@@ -2,10 +2,12 @@ import fitz  # PyMuPDF
 import re
 from datetime import datetime
 from pathlib import Path
+import os
+import zipfile
 import streamlit as st
 from io import BytesIO
 
-st.set_page_config(layout="wide")  # Bruk hele bredden av skjermen
+st.set_page_config(layout="wide")
 
 # Funksjon for å trekke ut verdier fra teksten
 def trekk_ut_verdier(tekst):
@@ -51,8 +53,58 @@ def combine_pdf_and_attachments(pdf_file, folder_files):
     output_pdf.seek(0)
     return output_pdf
 
+# Funksjon for å splitte PDF-fil pr. post og lagre i en ZIP
+def split_pdf_to_zip(uploaded_pdf):
+    tekst_per_side = les_tekst_fra_pdf(uploaded_pdf)
+    startside = 0
+    opprettede_filer = []
+    zip_buffer = BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for i, tekst in enumerate(tekst_per_side):
+            if "Målebrev" in tekst and i > startside:
+                postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
+                filnavn = f"{postnummer}_{dato}.pdf"
+                output_pdf = BytesIO()
+                opprett_ny_pdf(uploaded_pdf, startside, i - 1, output_pdf)
+                zipf.writestr(filnavn, output_pdf.getvalue())
+                opprettede_filer.append(filnavn)
+                startside = i
+
+        # Håndter siste segment
+        postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
+        filnavn = f"{postnummer}_{dato}.pdf"
+        output_pdf = BytesIO()
+        opprett_ny_pdf(uploaded_pdf, startside, len(tekst_per_side) - 1, output_pdf)
+        zipf.writestr(filnavn, output_pdf.getvalue())
+        opprettede_filer.append(filnavn)
+
+    zip_buffer.seek(0)
+    return zip_buffer
+
+# Funksjon for å lese tekst fra PDF for splitting
+def les_tekst_fra_pdf(pdf_file):
+    pdf_file.seek(0)
+    dokument = fitz.open(stream=pdf_file.read(), filetype="pdf")
+    tekst_per_side = []
+    for side_num in range(len(dokument)):
+        side = dokument[side_num]
+        tekst_per_side.append(side.get_text("text"))
+    dokument.close()
+    return tekst_per_side
+
+# Funksjon for å opprette nye PDF-er
+def opprett_ny_pdf(original_pdf, startside, sluttside, output_pdf):
+    original_pdf.seek(0)
+    dokument = fitz.open(stream=original_pdf.read(), filetype="pdf")
+    ny_pdf = fitz.open()
+    ny_pdf.insert_pdf(dokument, from_page=startside, to_page=sluttside)
+    ny_pdf.save(output_pdf)
+    ny_pdf.close()
+    dokument.close()
+
 # Streamlit-grensesnittet
-st.title("Kombiner målebrev med vedlegg")
+st.title("Kombiner målebrev med vedlegg / Splitt og last ned som ZIP")
 pdf_file = st.file_uploader("Last opp PDF-filen med Målebrev", type="pdf", key="combine_pdf")
 folder_files = st.file_uploader("Last opp vedleggs-PDF-filer", type="pdf", accept_multiple_files=True, key="attachments")
 
@@ -60,3 +112,8 @@ if pdf_file and folder_files:
     combined_pdf = combine_pdf_and_attachments(pdf_file, folder_files)
     st.success("Kombinering fullført!")
     st.download_button("Last ned kombinert PDF", combined_pdf, file_name="kombinert_dokument.pdf", mime="application/pdf")
+
+    if st.button("Start Splitting og Last ned som ZIP"):
+        zip_buffer = split_pdf_to_zip(pdf_file)
+        st.success("Splitting fullført!")
+        st.download_button("Last ned alle splittede PDF-filer som ZIP", zip_buffer, file_name="Splittet_malebrev.zip", mime="application/zip")
