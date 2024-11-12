@@ -54,10 +54,9 @@ def combine_pdf_and_attachments(pdf_file, folder_files):
     return output_pdf
 
 # Funksjon for å splitte PDF-fil pr. post og lagre i en ZIP
-def split_pdf_to_zip(uploaded_pdf):
-    tekst_per_side = les_tekst_fra_pdf(uploaded_pdf)
+def split_pdf_to_zip(combined_pdf):
+    tekst_per_side = les_tekst_fra_pdf(combined_pdf)
     startside = 0
-    opprettede_filer = []
     zip_buffer = BytesIO()
 
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -66,18 +65,16 @@ def split_pdf_to_zip(uploaded_pdf):
                 postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
                 filnavn = f"{postnummer}_{dato}.pdf"
                 output_pdf = BytesIO()
-                opprett_ny_pdf(uploaded_pdf, startside, i - 1, output_pdf)
+                opprett_ny_pdf(combined_pdf, startside, i - 1, output_pdf)
                 zipf.writestr(filnavn, output_pdf.getvalue())
-                opprettede_filer.append(filnavn)
                 startside = i
 
         # Håndter siste segment
         postnummer, mengde, dato = trekk_ut_verdier(tekst_per_side[startside])
         filnavn = f"{postnummer}_{dato}.pdf"
         output_pdf = BytesIO()
-        opprett_ny_pdf(uploaded_pdf, startside, len(tekst_per_side) - 1, output_pdf)
+        opprett_ny_pdf(combined_pdf, startside, len(tekst_per_side) - 1, output_pdf)
         zipf.writestr(filnavn, output_pdf.getvalue())
-        opprettede_filer.append(filnavn)
 
     zip_buffer.seek(0)
     return zip_buffer
@@ -114,6 +111,6 @@ if pdf_file and folder_files:
     st.download_button("Last ned kombinert PDF", combined_pdf, file_name="kombinert_dokument.pdf", mime="application/pdf")
 
     if st.button("Start Splitting og Last ned som ZIP"):
-        zip_buffer = split_pdf_to_zip(pdf_file)
+        zip_buffer = split_pdf_to_zip(combined_pdf)
         st.success("Splitting fullført!")
         st.download_button("Last ned alle splittede PDF-filer som ZIP", zip_buffer, file_name="Splittet_malebrev.zip", mime="application/zip")
