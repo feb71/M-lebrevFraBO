@@ -34,26 +34,19 @@ def opprett_ny_pdf(original_pdf, startside, sluttside):
     return output_pdf
 
 
-def trekk_ut_vedlegg(tekst):
+def trekk_ut_alle_pdf_vedlegg(tekst):
     """
-    Finner alle vedlegg som står under "Vedlagte dokumenter".
-    Søker i hele teksten (samlet fra alle sider i målebrevet).
+    Søker etter alle .pdf-filer i teksten, uavhengig av kontekst.
+    Returnerer en liste med alle unike PDF-filnavn.
     """
-    vedlegg_mønster = r"Vedlagte dokumenter:(.*?)(Skrevet ut|Signatur|$)"
-    match = re.search(vedlegg_mønster, tekst, re.IGNORECASE | re.DOTALL)
-    if not match:
-        return []
-
-    vedlegg_tekst = match.group(1)
-    # Finner alle filnavn som ender med ".pdf", uavhengig av linjeskift
     pattern_pdf = r"([\w\-. ]+\.pdf)"
-    return re.findall(pattern_pdf, vedlegg_tekst, re.IGNORECASE)
+    return list(set(re.findall(pattern_pdf, tekst, re.IGNORECASE)))
 
 
 def split_malebrev_med_vedlegg(pdf_file, folder_files):
     """
-    Splitt målebrev basert på "Målebrev" og legg ved alle relevante vedlegg.
-    Håndterer flere sider i ett målebrev.
+    Splitt målebrev basert på 'Målebrev' og legg ved alle relevante vedlegg,
+    inkludert vedlegg fra partallsider eller andre steder i målebrevet.
     """
     tekst_per_side = les_tekst_fra_pdf(pdf_file)
     pdf_file.seek(0)
@@ -80,7 +73,7 @@ def split_malebrev_med_vedlegg(pdf_file, folder_files):
             tekst_for_malebrev = "\n".join(tekst_per_side[startside:sluttside + 1])
 
             # Hent vedlegg fra teksten
-            vedleggsliste = trekk_ut_vedlegg(tekst_for_malebrev)
+            vedleggsliste = trekk_ut_alle_pdf_vedlegg(tekst_for_malebrev)
 
             # Lag en ny PDF med alle sidene i dette målebrevet
             pdf_bytes_malebrev = opprett_ny_pdf(original_pdf, startside, sluttside)
