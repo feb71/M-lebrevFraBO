@@ -34,6 +34,19 @@ def opprett_ny_pdf(original_pdf, startside, sluttside):
     return output_pdf
 
 
+def trekk_ut_postnummer_og_dato(tekst):
+    """Henter postnummer og dato fra teksten."""
+    postnummer_pattern = r'postnummer\s+beskrivelse\s+([\d.]+)'
+    postnummer_match = re.search(postnummer_pattern, tekst, re.IGNORECASE)
+    postnummer = postnummer_match.group(1).strip() if postnummer_match else "ukjent"
+
+    dato_pattern = r'(\d{2}\.\d{2}\.\d{4})'
+    dato_match = re.search(dato_pattern, tekst)
+    dato = datetime.strptime(dato_match.group(1), "%d.%m.%Y").strftime("%Y%m%d") if dato_match else datetime.now().strftime("%Y%m%d")
+
+    return postnummer, dato
+
+
 def trekk_ut_alle_pdf_vedlegg(tekst):
     """
     Søker etter alle .pdf-filer i teksten, uavhengig av kontekst.
@@ -63,6 +76,7 @@ def split_malebrev_med_vedlegg(pdf_file, folder_files):
 
     folder_dict = {Path(file.name).name: file for file in folder_files}
     zip_buffer = BytesIO()
+    combined_document = fitz.open()
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
         for idx in range(len(sidegrenser) - 1):
@@ -71,6 +85,9 @@ def split_malebrev_med_vedlegg(pdf_file, folder_files):
 
             # Kombiner tekst fra alle sider i målebrevet
             tekst_for_malebrev = "\n".join(tekst_per_side[startside:sluttside + 1])
+
+            # Hent postnummer og dato
+            postnummer, dato = trekk_ut_postnummer_og_dato(tekst_for_malebrev)
 
             # Hent vedlegg fra teksten
             vedleggsliste = trekk_ut_alle_pdf_vedlegg(tekst_for_malebrev)
@@ -95,11 +112,20 @@ def split_malebrev_med_vedlegg(pdf_file, folder_files):
             final_pdf.seek(0)
 
             # Legg PDF-en i ZIP-filen
-            filnavn = f"Malebrev_{startside + 1}_til_{sluttside + 1}.pdf"
+            filnavn = f"{postnummer}_{dato}.pdf"
             zipf.writestr(filnavn, final_pdf.getvalue())
 
+            # Legg til i samlet PDF
+            combined_document.insert_pdf(fitz.open(stream=final_pdf.read(), filetype="pdf"))
+
+    # Lagre samlet PDF
+    samlet_pdf = BytesIO()
+    combined_document.save(samlet_pdf)
+    combined_document.close()
+    samlet_pdf.seek(0)
+
     zip_buffer.seek(0)
-    return zip_buffer
+    return zip_buffer, samlet_pdf
 
 # ----------- Streamlit-grensesnitt -----------
 
@@ -118,11 +144,17 @@ if vedlegg_files:
 
 if pdf_file and vedlegg_files:
     if st.button("Splitt og last ned ZIP"):
-        zip_buffer = split_malebrev_med_vedlegg(pdf_file, vedlegg_files)
+        zip_buffer, samlet_pdf = split_malebrev_med_vedlegg(pdf_file, vedlegg_files)
         st.success("Splitting fullført!")
         st.download_button(
             label="Last ned ZIP",
             data=zip_buffer,
             file_name="splittet_malebrev.zip",
             mime="application/zip",
+        )
+        st.download_button(
+            label="Last ned samlet PDF",
+            data=samlet_pdf,
+            file_name="samlet_malebrev.pdf",
+            mime="application/pdf",
         )
