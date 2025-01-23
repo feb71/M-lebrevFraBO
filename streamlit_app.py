@@ -7,63 +7,67 @@ import zipfile
 import streamlit as st
 from io import BytesIO
 
-# Funksjon for å trekke ut verdier fra teksten
+# --------------------------------------------------------------------------------
+# 1) Funksjon for å hente ut info (postnummer, mengde, dato) fra en samlet streng
+# --------------------------------------------------------------------------------
 def trekk_ut_verdier(tekst):
     postnummer_pattern = r'postnummer\s+beskrivelse\s+([\d.]+)\s+(?=rs|stk|kg|m|m2|m3)\b'
     postnummer_match = re.search(postnummer_pattern, tekst, re.IGNORECASE)
     postnummer = postnummer_match.group(1).strip() if postnummer_match else "ukjent"
 
     mengde_pattern = r'(?<=Utført pr. d.d.:\n)([\d,]+)'
-    dato_pattern = r'(\d{2}\.\d{2}\.\d{4})'
-
-    # Forsøk å finne mengde fra teksten
     mengde_match = re.search(mengde_pattern, tekst)
     mengde = mengde_match.group(1) if mengde_match else "ukjent"
 
-    # Dato: først default = dagens dato i format YYYYMMDD
+    # Dato: bruk dagens dato (YYYYMMDD) hvis ingen dato i teksten
+    dato_pattern = r'(\d{2}\.\d{2}\.\d{4})'
     dato_match_str = datetime.now().strftime("%Y%m%d")
-    # Dersom vi faktisk finner en dato i teksten:
     if (dato_re_match := re.search(dato_pattern, tekst)):
         dato_match_str = datetime.strptime(dato_re_match.group(1), "%d.%m.%Y").strftime("%Y%m%d")
 
     return postnummer, mengde, dato_match_str
 
-# Funksjon for å kombinere hovedmålebrev med vedleggene
-def combine_pdf_and_attachments(pdf_file, folder_files):
-    combined_document = fitz.open()
-    original_document = fitz.open(stream=pdf_file.read(), filetype="pdf")
-    folder_dict = {Path(file.name).name: file for file in folder_files}
+# --------------------------------------------------------------------------------
+# 2) Funksjon for å hente ut PDF-vedleggene som er listet i en streng med "Vedlagte dokumenter:"
+# --------------------------------------------------------------------------------
+def finn_vedlegg_i_tekst(tekst):
+    """
+    Ser etter 'Vedlagte dokumenter:' og henter ut alle *.pdf i samme avsnitt.
+    Returnerer en liste med filnavn, f.eks. ["vedlegg1.pdf", "rapport.pdf", ...].
+    Juster regex/fremgangsmåte ved behov.
+    """
+    # Eksempel: Du kan finne alt som står etter "Vedlagte dokumenter:" på samme side.
+    # Hvis du har flere "Vedlagte dokumenter:"-seksjoner per målebrev, må du iterere.
+    vedlegg_mønster = r'Vedlagte dokumenter:(.*?)(?=\n\n|$)'  # litt forsiktig
+    match = re.search(vedlegg_mønster, tekst, re.IGNORECASE|re.DOTALL)
+    if not match:
+        return []
 
-    for page_num in range(len(original_document)):
-        page = original_document.load_page(page_num)
-        combined_document.insert_pdf(original_document, from_page=page_num, to_page=page_num)
-        text = page.get_text("text")
+    # Teksten i gruppa kan inneholde flere linjer, f.eks.:
+    # vedlegg1.pdf
+    # vedlegg2.pdf
+    # ...
+    # Splitt i linjer og hent ut .pdf
+    vedlegg_tekst = match.group(1)
 
-        # Finn 'Vedlagte dokumenter:' og skill ut linjene
-        if "Vedlagte dokumenter:" in text:
-            links_text = text.split("Vedlagte dokumenter:")[1].strip().split("\n")
-        else:
-            links_text = []
+    # Finn alt som ender på ".pdf" (enten store eller små bokstaver)
+    # og fjern eventuelle path-biter før.
+    pattern_pdf = r'([\w\-. ]+\.pdf)'
+    found = re.findall(pattern_pdf, vedlegg_tekst, re.IGNORECASE)
+    
+    # Rens ut spacing, fjerne "\\"-stier og lignende
+    found_cleaned = []
+    for f in found:
+        # Ta kun selve filnavnet (f.eks. filnavn.pdf, selv om det sto c:/mappe/filnavn.pdf)
+        # Eksempel: "some/folder/test.pdf" -> "test.pdf"
+        fname = f.strip().replace("\\", "/").split("/")[-1]
+        found_cleaned.append(fname)
 
-        # For hver PDF-link i teksten: sjekk om filen finnes i opplastede vedlegg, og legg den til
-        for link_text in links_text:
-            link_text = link_text.strip().replace("\\", "/").split("/")[-1]
-            if not re.match(r'.+\.pdf$', link_text):
-                continue
-            if link_text in folder_dict:
-                attachment_file = folder_dict[link_text]
-                attachment_file.seek(0)
-                attachment_document = fitz.open(stream=attachment_file.read(), filetype="pdf")
-                combined_document.insert_pdf(attachment_document)
-                attachment_document.close()
+    return found_cleaned
 
-    output_pdf = BytesIO()
-    combined_document.save(output_pdf)
-    combined_document.close()
-    output_pdf.seek(0)
-    return output_pdf
-
-# Funksjon for å lese all tekst fra PDF og få en liste av tekster pr. side
+# --------------------------------------------------------------------------------
+# 3) Les all tekst fra PDF pr side
+# --------------------------------------------------------------------------------
 def les_tekst_fra_pdf(pdf_file):
     pdf_file.seek(0)
     dokument = fitz.open(stream=pdf_file.read(), filetype="pdf")
@@ -74,8 +78,14 @@ def les_tekst_fra_pdf(pdf_file):
     dokument.close()
     return tekst_per_side
 
-# Funksjon for å opprette en ny PDF fra utvalgte sider av originalen
-def opprett_ny_pdf(original_pdf, startside, sluttside, output_pdf):
+# --------------------------------------------------------------------------------
+# 4) Opprett ny PDF fra utvalgte sider (startside -> sluttside)
+# --------------------------------------------------------------------------------
+def opprett_ny_pdf(original_pdf, startside, sluttside):
+    """
+    Returnerer en BytesIO som inneholder PDF-sidene fra startside til sluttside (inkludert).
+    """
+    output_pdf = BytesIO()
     original_pdf.seek(0)
     dokument = fitz.open(stream=original_pdf.read(), filetype="pdf")
     ny_pdf = fitz.open()
@@ -83,66 +93,124 @@ def opprett_ny_pdf(original_pdf, startside, sluttside, output_pdf):
     ny_pdf.save(output_pdf)
     ny_pdf.close()
     dokument.close()
+    output_pdf.seek(0)
+    return output_pdf
 
-# Funksjon for å splitte PDF-fil pr. post og lagre i en ZIP
-def split_pdf_to_zip(combined_pdf):
-    # Les tekst for hver side
-    tekst_per_side = les_tekst_fra_pdf(combined_pdf)
-    startside = 0
+# --------------------------------------------------------------------------------
+# 5) Hoved-funksjon som splitter PDF-en pr målebrev, og for hvert målebrev
+#    legger vi på de vedleggene som er listet under "Vedlagte dokumenter:" 
+#    (uansett hvilken side av målebrevet de sto på).
+# --------------------------------------------------------------------------------
+def split_malebrev_med_vedlegg(pdf_file, folder_files):
+    """
+    - Finne grenser for hvert målebrev (basert på ordet "Målebrev" i PDF-en).
+    - For hver post: 
+       a) samle ALLE sidene (startside -> sluttside),
+       b) parse ut "Vedlagte dokumenter" fra all teksten i målebrevet,
+       c) appender de vedlagte PDF-filene, 
+       d) navngir filen f"{postnummer}_{dato}.pdf".
+    - Returnerer en ZIP i en BytesIO.
+    """
+    # 1) Les inn PDF-tekst pr. side
+    tekst_per_side = les_tekst_fra_pdf(pdf_file)
+
+    # For å kunne lage nye PDF-er i prosessen flere ganger, 
+    # må vi ha "original_pdf" i minnet som BytesIO
+    pdf_file.seek(0)
+    original_pdf_data = pdf_file.read()
+    original_pdf_bytesio = BytesIO(original_pdf_data)
+
+    # 2) Finn sidegrenser for målebrev
+    sidegrenser = []
+    for i, tekst in enumerate(tekst_per_side):
+        if "Målebrev" in tekst:
+            sidegrenser.append(i)
+
+    # Hvis PDF-en starter med "Målebrev" på side 0, men vi trenger en "sluttgrense" i tillegg
+    # Ved splitting er logikken: [sidegrenser[0], sidegrenser[1]-1], [sidegrenser[1], sidegrenser[2]-1], ...
+    # men siste målebrev strekker seg til siste side i dokumentet
+    # sidegrenser = [0, 3, 7, ...]
+    # Sjekk at vi har minst én post
+    if not sidegrenser:
+        # Fant ingen "Målebrev", da kan man håndtere det som man vil. 
+        # Returnerer tom ZIP i dette eksemplet.
+        empty_zip = BytesIO()
+        with zipfile.ZipFile(empty_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+            pass
+        empty_zip.seek(0)
+        return empty_zip
+
+    # Legg til en "kunstig" sluttgrense på siste side + 1
+    sidegrenser.append(len(tekst_per_side))
+
+    # 3) Opprett en ZIP i minnet og fyll den med PDF-er
     zip_buffer = BytesIO()
+    folder_dict = {Path(file.name).name: file for file in folder_files}
 
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for i in range(len(tekst_per_side)):
-            # Hvis vi finner "Målebrev" og ikke er på første side, er det starten på neste målebrev
-            if "Målebrev" in tekst_per_side[i] and i > startside:
-                # Samle teksten fra *hele målebrevet* (startside til i-1)
-                tekst_for_ett_malebrev = "\n".join(tekst_per_side[startside:i])
-                postnummer, mengde, dato = trekk_ut_verdier(tekst_for_ett_malebrev)
+        # Gå gjennom par av grenser: (sidegrenser[i], sidegrenser[i+1]) -> definisjon av et målebrev
+        for idx in range(len(sidegrenser) - 1):
+            startside = sidegrenser[idx]
+            sluttside = sidegrenser[idx+1] - 1
 
-                filnavn = f"{postnummer}_{dato}.pdf"
-                output_pdf = BytesIO()
-                # Lag PDF fra sidene startside -> i-1
-                opprett_ny_pdf(combined_pdf, startside, i - 1, output_pdf)
-                zipf.writestr(filnavn, output_pdf.getvalue())
-                
-                # Neste målebrev starter på i
-                startside = i
+            # Samle tekst fra alle sidene i dette målebrevet
+            tekst_for_ett_malebrev = "\n".join(tekst_per_side[startside:sluttside+1])
 
-        # Håndter siste segment (fra startside til siste side)
-        tekst_for_ett_malebrev = "\n".join(tekst_per_side[startside:len(tekst_per_side)])
-        postnummer, mengde, dato = trekk_ut_verdier(tekst_for_ett_malebrev)
-        filnavn = f"{postnummer}_{dato}.pdf"
-        output_pdf = BytesIO()
-        opprett_ny_pdf(combined_pdf, startside, len(tekst_per_side) - 1, output_pdf)
-        zipf.writestr(filnavn, output_pdf.getvalue())
+            # Trekk ut info om postnummer, dato, mengde
+            postnummer, mengde, dato = trekk_ut_verdier(tekst_for_ett_malebrev)
+
+            # Finn vedlegg (alle .pdf-filer listet under "Vedlagte dokumenter:")
+            vedlegg_fra_tekst = finn_vedlegg_i_tekst(tekst_for_ett_malebrev)
+
+            # Lag en PDF med sidene som hører til målebrevet
+            malebrev_pdf_bytes = opprett_ny_pdf(original_pdf_bytesio, startside, sluttside)
+            malebrev_pdf = fitz.open(stream=malebrev_pdf_bytesio.read(), filetype="pdf")
+            malebrev_pdf.close()
+
+            # Nå skal vi opprette en "endelig" PDF i minnet der vi først 
+            # legger inn målebrevsidene, deretter vedleggene. 
+            combined_for_this_post = fitz.open(stream=malebrev_pdf_bytes, filetype="pdf")
+
+            # For hvert vedleggsnavn -> finn i folder_dict og append
+            for filnavn in vedlegg_fra_tekst:
+                if filnavn in folder_dict:
+                    attachment_file = folder_dict[filnavn]
+                    attachment_file.seek(0)
+                    attachment_pdf = fitz.open(stream=attachment_file.read(), filetype="pdf")
+
+                    # Append attachment til combined
+                    combined_for_this_post.insert_pdf(attachment_pdf)
+                    attachment_pdf.close()
+
+            # Lag en bytesIO av combined
+            final_pdf_for_post = BytesIO()
+            combined_for_this_post.save(final_pdf_for_post)
+            combined_for_this_post.close()
+            final_pdf_for_post.seek(0)
+
+            # Sett filnavn for ZIP
+            filnavn = f"{postnummer}_{dato}.pdf"
+            zipf.writestr(filnavn, final_pdf_for_post.getvalue())
 
     zip_buffer.seek(0)
     return zip_buffer
 
-# Streamlit-grensesnittet
-st.title("Kombiner målebrev med vedlegg / Splitt og last ned som ZIP")
+# --------------------------------------------------------------------------------
+# 6) Streamlit-grensesnittet
+# --------------------------------------------------------------------------------
+st.title("Målebrev-splitting med vedlegg per post")
 
-pdf_file = st.file_uploader("Last opp PDF-filen med Målebrev", type="pdf", key="combine_pdf")
-folder_files = st.file_uploader("Last opp vedleggs-PDF-filer", type="pdf", accept_multiple_files=True, key="attachments")
+pdf_file = st.file_uploader("Last opp PDF-filen med Målebrev", type="pdf")
+folder_files = st.file_uploader("Last opp vedlegg (PDF)", type="pdf", accept_multiple_files=True)
 
 if pdf_file and folder_files:
-    # 1) Kombiner hoved-PDF og vedlegg
-    combined_pdf = combine_pdf_and_attachments(pdf_file, folder_files)
-    st.success("Kombinering fullført!")
-    st.download_button(
-        "Last ned kombinert PDF", 
-        combined_pdf, 
-        file_name="kombinert_dokument.pdf", 
-        mime="application/pdf"
-    )
-
-    # 2) Splitt og last ned som ZIP
-    if st.button("Start Splitting og Last ned som ZIP"):
-        zip_buffer = split_pdf_to_zip(combined_pdf)
+    if st.button("Splitt og last ned ZIP"):
+        # Kjør funksjonen som lager ZIP
+        zip_buffer = split_malebrev_med_vedlegg(pdf_file, folder_files)
         st.success("Splitting fullført!")
         st.download_button(
-            "Last ned alle splittede PDF-filer som ZIP", 
-            zip_buffer, 
-            file_name="Splittet_malebrev.zip", 
+            "Last ned ZIP med splittede målebrev + vedlegg",
+            zip_buffer,
+            file_name="Splittet_malebrev.zip",
             mime="application/zip"
         )
