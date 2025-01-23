@@ -108,14 +108,15 @@ st.title("Splitt målebrev med vedlegg")
 pdf_file = st.file_uploader("Last opp PDF-filen med målebrev", type="pdf")
 vedlegg_files = st.file_uploader("Last opp vedlegg", type="pdf", accept_multiple_files=True)
 
-if pdf_file and vedlegg_files:
-    # Debug: Vis tekst per side
-    if st.button("Vis tekst per side"):
-        tekst_per_side = les_tekst_fra_pdf(pdf_file)
-        for i, tekst in enumerate(tekst_per_side):
-            st.write(f"--- Side {i + 1} ---")
-            st.write(tekst)
+if pdf_file:
+    st.write(f"PDF med målebrev lastet opp: {pdf_file.name}")
 
+if vedlegg_files:
+    st.write("Vedlegg lastet opp:")
+    for vedlegg in vedlegg_files:
+        st.write(f"- {vedlegg.name}")
+
+if pdf_file and vedlegg_files:
     if st.button("Splitt og last ned ZIP"):
         zip_buffer = split_malebrev_med_vedlegg(pdf_file, vedlegg_files)
         st.success("Splitting fullført!")
